@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.siddesh0101.billingapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,6 +39,12 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3b9f0e2e-86c0-4747-8ccb-b2b0efaf1265"
+      }
     }
   }
 }
