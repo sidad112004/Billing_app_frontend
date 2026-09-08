@@ -2,12 +2,26 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+const formatBaseUrl = (url) => {
+  if (!url) return '';
+  let formatted = url.trim().replace(/\/+$/, '');
+  if (!formatted.endsWith('/api')) {
+    formatted = `${formatted}/api`;
+  }
+  return formatted;
+};
+
 const getApiBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
 
-  // On Web, use envUrl or localhost
+  // If environment variable is explicitly provided, use it
+  if (envUrl) {
+    return formatBaseUrl(envUrl);
+  }
+
+  // On Web, use localhost
   if (Platform.OS === 'web') {
-    return envUrl || 'http://localhost:5000/api';
+    return 'http://localhost:5000/api';
   }
 
   // Detect Expo Go host IP (your development computer's local IP on Wi-Fi)
@@ -24,7 +38,7 @@ const getApiBaseUrl = () => {
     return 'http://10.0.2.2:5000/api';
   }
 
-  return envUrl || 'http://localhost:5000/api';
+  return 'http://localhost:5000/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
