@@ -11,6 +11,10 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
 
+    env:
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dorg.gradle.daemon=false"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,19 +23,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: "npm"
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install dependencies
-        run: npm ci
+      - name: Install npm dependencies
+        run: npm install --legacy-peer-deps
 
       - name: Create .env file
         run: |
@@ -40,9 +41,12 @@ jobs:
       - name: Generate Native Android Project (Prebuild)
         run: npx expo prebuild --platform android --clean
 
-      - name: Build Release APK with Gradle
+      - name: Set permissions for Gradle Wrapper
+        run: chmod +x android/gradlew
+
+      - name: Build Release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
