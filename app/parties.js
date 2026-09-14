@@ -13,6 +13,7 @@ export default function PartiesScreen() {
   const [parties, setParties] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Modal State
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -43,7 +44,13 @@ export default function PartiesScreen() {
       console.error('Failed to load parties:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadParties();
   };
 
   const openAddModal = () => {
@@ -183,23 +190,32 @@ export default function PartiesScreen() {
         </TouchableOpacity>
       ) : null}
 
-      <View className="mt-4 pt-3 border-t border-border/60 flex-row justify-between items-center">
+      <View className="mt-4 pt-3 border-t border-border/60 flex-row justify-between items-center gap-2">
         <TouchableOpacity
           onPress={() => handleViewTransactions(item)}
-          className="bg-background px-3.5 py-2 rounded-xl flex-row items-center border border-border"
+          className="bg-background px-3 py-2 rounded-xl flex-row items-center border border-border flex-1 justify-center"
           activeOpacity={0.7}
         >
-          <Feather name="file-text" size={14} color="#64748B" />
-          <Text className="text-[13px] font-bold text-textMain ml-1.5">View Transactions</Text>
+          <Feather name="file-text" size={13} color="#64748B" />
+          <Text className="text-[12px] font-bold text-textMain ml-1">Transactions</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => router.push(`/party-timeline?partyId=${item.id}&partyName=${encodeURIComponent(item.name)}`)}
+          className="bg-indigo-500/10 px-3 py-2 rounded-xl flex-row items-center border border-indigo-500/20 flex-1 justify-center"
+          activeOpacity={0.7}
+        >
+          <Feather name="clock" size={13} color="#6366F1" />
+          <Text className="text-[12px] font-bold text-indigo-700 dark:text-indigo-400 ml-1">Statement</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => handleStartTransaction(item)}
-          className="bg-primary/10 px-4 py-2 rounded-xl flex-row items-center border border-primary/30"
+          className="bg-primary/10 px-3 py-2 rounded-xl flex-row items-center border border-primary/30 flex-1 justify-center"
           activeOpacity={0.7}
         >
-          <Feather name="plus-circle" size={14} color="#10B981" />
-          <Text className="text-[13px] font-bold text-primary ml-1.5">New Bill</Text>
+          <Feather name="plus-circle" size={13} color="#10B981" />
+          <Text className="text-[12px] font-bold text-primary ml-1">New Bill</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -233,6 +249,8 @@ export default function PartiesScreen() {
             renderItem={renderPartyItem}
             contentContainerClassName="pb-24"
             showsVerticalScrollIndicator={false}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
             ListEmptyComponent={
               <EmptyState
                 icon="users"

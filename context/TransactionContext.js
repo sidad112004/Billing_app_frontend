@@ -12,8 +12,9 @@ const INITIAL_STATE = {
   selectedVarieties: [],
   weightEntries: [],
   pendingSync: [],
-  // NOTE: rates are no longer stored in local context.
-  // They are stored server-side on transaction_varieties.rate and loaded from the backend.
+  // Fast Transaction state
+  transactionMode: 'REGULAR', // 'REGULAR' | 'FAST'
+  fastEntries: [],
 };
 
 export function TransactionProvider({ children }) {
@@ -27,6 +28,10 @@ export function TransactionProvider({ children }) {
       stateRef.current = next;
       return next;
     });
+  };
+
+  const setTransactionMode = (mode) => {
+    updateState(prev => ({ ...prev, transactionMode: mode }));
   };
 
   const setBackendTransactionId = (id) => {
@@ -102,8 +107,9 @@ export function TransactionProvider({ children }) {
   };
 
   /**
+  /**
    * Add a product+varieties to an already-initialized backend transaction.
-   * Used when the operator discovers a new product while weighing.
+   * Used when the operator discovers a new product or creates one while weighing.
    */
   const addProductVarietiesToTransaction = async (newVarieties) => {
     const currentState = stateRef.current;
@@ -116,6 +122,17 @@ export function TransactionProvider({ children }) {
       const txId = currentState.backendTransactionId;
       const varietyMap = { ...currentState.backendVarietyMap };
 
+      // Get current transaction products in case they were already created
+      let existingTxProducts = [];
+      try {
+        const txRes = await transactionApi.getTransaction(txId);
+        if (txRes && txRes.data && txRes.data.products) {
+          existingTxProducts = txRes.data.products;
+        }
+      } catch (err) {
+        console.warn('Could not fetch existing transaction products:', err);
+      }
+
       // Group new varieties by product
       const productMap = {};
       newVarieties.forEach(v => {
@@ -124,27 +141,32 @@ export function TransactionProvider({ children }) {
       });
 
       for (const productId of Object.keys(productMap)) {
-        // Try to add product (may already exist — backend will handle unique constraint)
-        let txProdId;
-        try {
-          const tpRes = await transactionApi.addTransactionProduct(txId, { productId });
-          if (tpRes.success) {
-            txProdId = tpRes.data.id;
-          } else {
-            // Product may already be in transaction, fetch its ID from existing data
-            // We'll try adding varieties anyway with what we have
-            console.warn('Product may already exist in transaction:', tpRes.message);
-            continue;
+        let txProdId = null;
+
+        // Check if already in transaction
+        const found = existingTxProducts.find(p => p.productId === productId || p.id === productId);
+        if (found) {
+          txProdId = found.id;
+        } else {
+          try {
+            const tpRes = await transactionApi.addTransactionProduct(txId, { productId });
+            if (tpRes.success && tpRes.data) {
+              txProdId = tpRes.data.id;
+            }
+          } catch (e) {
+            console.warn('Failed to add product to transaction:', e);
           }
-        } catch (e) {
-          console.warn('Failed to add product to transaction:', e);
+        }
+
+        if (!txProdId) {
+          console.warn('Could not get transaction product id for product', productId);
           continue;
         }
 
         for (const variety of productMap[productId]) {
           try {
             const tvRes = await transactionApi.addTransactionVariety(txProdId, { varietyId: variety.id });
-            if (tvRes.success) {
+            if (tvRes.success && tvRes.data) {
               varietyMap[variety.id] = tvRes.data.id;
             }
           } catch (e) {
@@ -156,7 +178,7 @@ export function TransactionProvider({ children }) {
       // Update context state with new varieties and updated map
       updateState(prev => ({
         ...prev,
-        selectedVarieties: [...prev.selectedVarieties, ...newVarieties],
+        selectedVarieties: [...prev.selectedVarieties.filter(v => !newVarieties.some(nv => nv.id === v.id)), ...newVarieties],
         selectedProducts: (() => {
           const existing = prev.selectedProducts.map(p => p.id);
           const toAdd = newVarieties
@@ -172,6 +194,34 @@ export function TransactionProvider({ children }) {
       console.error('Error adding product/varieties to transaction:', error);
       return false;
     }
+  };
+
+  const addProduct = (product) => {
+    updateState((prev) => {
+      const exists = prev.selectedProducts.some((p) => p.id === product.id);
+      if (exists) return prev;
+      return { ...prev, selectedProducts: [...prev.selectedProducts, product] };
+    });
+  };
+
+  const addVariety = (varietyObj) => {
+    updateState((prev) => {
+      const exists = prev.selectedVarieties.some((v) => v.id === varietyObj.id);
+      const updatedVarieties = exists
+        ? prev.selectedVarieties
+        : [...prev.selectedVarieties, varietyObj];
+      
+      const prodExists = prev.selectedProducts.some((p) => p.id === varietyObj.productId);
+      const updatedProducts = prodExists
+        ? prev.selectedProducts
+        : [...prev.selectedProducts, { id: varietyObj.productId, name: varietyObj.productName }];
+
+      return {
+        ...prev,
+        selectedProducts: updatedProducts,
+        selectedVarieties: updatedVarieties
+      };
+    });
   };
 
   const toggleProduct = (product) => {
@@ -249,7 +299,10 @@ export function TransactionProvider({ children }) {
     updateState((prev) => ({
       ...prev,
       weightEntries: prev.weightEntries.map(entry =>
-        entry.id === entryId ? { ...entry, weight: newWeight } : entry
+        (entry.id === entryId || entry.tempId === entryId) ? { ...entry, weight: newWeight } : entry
+      ),
+      pendingSync: prev.pendingSync.map(entry =>
+        (entry.id === entryId || entry.tempId === entryId) ? { ...entry, weight: newWeight } : entry
       )
     }));
   };
@@ -257,8 +310,52 @@ export function TransactionProvider({ children }) {
   const deleteWeightEntry = (entryId) => {
     updateState((prev) => ({
       ...prev,
-      weightEntries: prev.weightEntries.filter(entry => entry.id !== entryId)
+      weightEntries: prev.weightEntries.filter(entry => entry.id !== entryId && entry.tempId !== entryId),
+      pendingSync: prev.pendingSync.filter(entry => entry.id !== entryId && entry.tempId !== entryId)
     }));
+  };
+
+  // ----------------------------------------------------------------
+  // Fast Transaction Entries Management
+  // ----------------------------------------------------------------
+  const addFastEntry = (entry) => {
+    const entryWithId = {
+      ...entry,
+      id: entry.id || `fast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      amount: Math.round((parseFloat(entry.weight || 0) * parseFloat(entry.rate || 0)) * 100) / 100
+    };
+    updateState((prev) => ({
+      ...prev,
+      fastEntries: [...prev.fastEntries, entryWithId]
+    }));
+    return entryWithId;
+  };
+
+  const updateFastEntry = (entryId, updatedFields) => {
+    updateState((prev) => ({
+      ...prev,
+      fastEntries: prev.fastEntries.map(e => {
+        if (e.id === entryId) {
+          const merged = { ...e, ...updatedFields };
+          const weight = parseFloat(merged.weight || 0);
+          const rate = parseFloat(merged.rate || 0);
+          merged.amount = Math.round((weight * rate) * 100) / 100;
+          return merged;
+        }
+        return e;
+      })
+    }));
+  };
+
+  const deleteFastEntry = (entryId) => {
+    updateState((prev) => ({
+      ...prev,
+      fastEntries: prev.fastEntries.filter(e => e.id !== entryId)
+    }));
+  };
+
+  const clearFastEntries = () => {
+    updateState((prev) => ({ ...prev, fastEntries: [] }));
   };
 
   // Reset all transaction state after completing a transaction
@@ -274,8 +371,11 @@ export function TransactionProvider({ children }) {
       setParty,
       setBackendTransactionId,
       setTransactionId,
+      setTransactionMode,
       initializeBackendTransaction,
       addProductVarietiesToTransaction,
+      addProduct,
+      addVariety,
       toggleProduct,
       toggleVariety,
       addWeightEntry,
@@ -284,6 +384,10 @@ export function TransactionProvider({ children }) {
       setTransactionData,
       updateWeightEntry,
       deleteWeightEntry,
+      addFastEntry,
+      updateFastEntry,
+      deleteFastEntry,
+      clearFastEntries,
       resetTransaction
     }}>
       {children}

@@ -55,13 +55,16 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = async () => {
+  const logout = async (onResetTransaction) => {
     try {
+      if (typeof onResetTransaction === 'function') {
+        try { onResetTransaction(); } catch (e) { /* ignore */ }
+      }
       // Get refresh token to invalidate server-side session
       const refreshToken = await getRefreshToken().catch(() => null);
       if (refreshToken) {
         await authApi.logout(refreshToken).catch((e) => {
-          console.error('Backend logout failed, proceeding with local logout:', e);
+          console.warn('Backend logout failed, proceeding with local logout:', e);
         });
       }
     } catch (error) {

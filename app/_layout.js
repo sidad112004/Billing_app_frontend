@@ -28,6 +28,7 @@ export default function Layout() {
         <Stack.Screen name="home" options={{ title: 'Home', headerLeft: () => null }} />
         <Stack.Screen name="parties" options={{ title: 'Parties Directory' }} />
         <Stack.Screen name="party-transactions" options={{ title: 'Party Transactions' }} />
+        <Stack.Screen name="party-timeline" options={{ title: 'Party History Statement' }} />
         <Stack.Screen name="products" options={{ title: 'Products & Varieties' }} />
         <Stack.Screen name="select-party" options={{ title: 'Select Party' }} />
         <Stack.Screen name="select-products" options={{ title: 'Select Products' }} />

@@ -214,7 +214,7 @@ export default function TransactionSummary() {
       </ScrollView>
 
       {/* Success Modal */}
-      <Modal visible={showSuccess} transparent animationType="fade">
+      <Modal visible={showSuccess} transparent animationType="fade" onRequestClose={handleSuccessContinue}>
         <View className="flex-1 bg-[#0F172A]/70 justify-center items-center p-6">
           <View className="bg-card rounded-3xl p-8 items-center w-full shadow-medium">
             <View className="w-24 h-24 rounded-full bg-[#ECFDF5] items-center justify-center mb-6 shadow-sm border-[4px] border-[#34D399]">
@@ -231,6 +231,7 @@ export default function TransactionSummary() {
             <TouchableOpacity
               className="bg-primary py-5 px-8 rounded-2xl w-full items-center shadow-sm elevation-2"
               onPress={handleSuccessContinue}
+              activeOpacity={0.8}
             >
               <Text className="text-[#FFFFFF] text-[18px] font-bold tracking-wide">GO TO PARTY LIST</Text>
             </TouchableOpacity>

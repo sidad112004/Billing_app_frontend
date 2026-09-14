@@ -12,6 +12,7 @@ export default function SelectParty() {
   const [searchQuery, setSearchQuery] = useState('');
   const [parties, setParties] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Add Party Modal State
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -41,7 +42,13 @@ export default function SelectParty() {
       console.error('Failed to load parties:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadParties();
   };
 
   // Filter parties based on search query
@@ -143,6 +150,8 @@ export default function SelectParty() {
             renderItem={renderPartyItem}
             contentContainerClassName="pb-8"
             showsVerticalScrollIndicator={false}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
             ListEmptyComponent={
               <Text className="text-center text-textSecondary mt-8 text-[16px]">No parties found matching "{searchQuery}"</Text>
             }

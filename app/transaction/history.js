@@ -45,11 +45,6 @@ export default function History() {
   // Actions
   // -------------------------------------------------------------
   const handleDelete = (entry) => {
-    if (entry.tempId) {
-      Alert.alert('Error', 'Wait for this entry to sync before deleting.');
-      return;
-    }
-
     Alert.alert(
       'Delete Entry',
       `Are you sure you want to delete the ${entry?.weight} kg entry?`,
@@ -60,6 +55,10 @@ export default function History() {
           style: 'destructive',
           onPress: async () => {
             try {
+              if (entry.tempId || (entry.id && String(entry.id).startsWith('weight_'))) {
+                deleteWeightEntry(entry.id);
+                return;
+              }
               const res = await transactionApi.deleteWeightEntry(entry.id);
               if (res.success) {
                 deleteWeightEntry(entry.id);
@@ -99,7 +98,9 @@ export default function History() {
       if (parts[1] && parts[1].length >= 2) return;
     }
 
-    setEditInputValue(prev => prev + val);
+    if (!editInputValue.includes('.') && editInputValue.length >= 6) return;
+
+    setEditInputValue(prev => (prev === '0' && val !== '.' ? val : prev + val));
   };
 
   const handleEditBackspace = () => {
@@ -107,10 +108,7 @@ export default function History() {
   };
 
   const handleSaveEdit = async () => {
-    if (editingEntry?.tempId) {
-      Alert.alert('Error', 'Wait for this entry to sync before editing.');
-      return;
-    }
+    if (!editingEntry) return;
 
     const weightNum = parseFloat(editInputValue);
     
@@ -121,6 +119,13 @@ export default function History() {
 
     try {
       setIsUpdating(true);
+      if (editingEntry.tempId || (editingEntry.id && String(editingEntry.id).startsWith('weight_'))) {
+        updateWeightEntry(editingEntry.id, weightNum);
+        handleCloseEdit();
+        syncPendingWeights();
+        return;
+      }
+
       const res = await transactionApi.updateWeightEntry(editingEntry.id, { weight: weightNum });
       if (res.success) {
         updateWeightEntry(editingEntry.id, weightNum);
