@@ -8,6 +8,13 @@ export const transactionApi = {
     });
   },
 
+  createFastTransaction: async (data) => {
+    return await apiClient('/transactions/fast', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   getTransactions: async (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
     const endpoint = queryString ? `/transactions?${queryString}` : '/transactions';

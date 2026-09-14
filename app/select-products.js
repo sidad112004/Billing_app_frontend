@@ -12,6 +12,7 @@ export default function SelectProducts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Add Product Modal State
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -48,7 +49,13 @@ export default function SelectProducts() {
       console.error('Failed to load products:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadProducts();
   };
 
   // Filter products based on search query
@@ -176,17 +183,12 @@ export default function SelectProducts() {
             data={filteredProducts}
             keyExtractor={(item) => item.id}
             renderItem={renderProductItem}
-            contentContainerClassName="pb-8"
+            contentContainerClassName="pb-4"
             showsVerticalScrollIndicator={false}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
             ListEmptyComponent={
-              <View className="py-8 items-center">
-                <Text className="text-center text-textSecondary text-[16px] mb-4">No products found matching "{searchQuery}"</Text>
-                <Button
-                  title="+ CREATE THIS PRODUCT"
-                  type="secondary"
-                  onPress={handleOpenAddModal}
-                />
-              </View>
+              <Text className="text-center text-textSecondary mt-8 text-[16px]">No products found matching "{searchQuery}"</Text>
             }
           />
         )}

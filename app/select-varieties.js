@@ -9,7 +9,7 @@ import { productApi } from '../api/services/productApi';
 import { useTransaction } from '../context/TransactionContext';
 
 export default function SelectVarieties() {
-  const { transactionState, toggleVariety } = useTransaction();
+  const { transactionState, toggleVariety, setTransactionMode } = useTransaction();
   
   const { party, selectedProducts, selectedVarieties } = transactionState;
   
@@ -26,11 +26,12 @@ export default function SelectVarieties() {
   const [formError, setFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Transaction Mode Selection Modal
+  const [isModeModalVisible, setIsModeModalVisible] = useState(false);
+
   const isContinueDisabled = selectedVarieties.length === 0;
 
   // Use a stable dependency: comma-joined product IDs string.
-  // The selectedProducts array reference changes on every context update,
-  // which previously caused an infinite re-fetch loop.
   const productIdsKey = selectedProducts.map(p => p.id).join(',');
   const partyId = party?.id;
 
@@ -140,6 +141,18 @@ export default function SelectVarieties() {
     }
   };
 
+  const handleSelectRegular = () => {
+    setIsModeModalVisible(false);
+    setTransactionMode('REGULAR');
+    router.push('/transaction/calculator');
+  };
+
+  const handleSelectFast = () => {
+    setIsModeModalVisible(false);
+    setTransactionMode('FAST');
+    router.push('/transaction/fast-calculator');
+  };
+
   return (
     <ScreenContainer>
       
@@ -224,12 +237,108 @@ export default function SelectVarieties() {
 
       <View className="pt-4 pb-2">
         <Button 
-          title="START WEIGHING" 
-          onPress={() => router.push('/transaction/calculator')} 
+          title="CHOOSE TRANSACTION TYPE" 
+          onPress={() => setIsModeModalVisible(true)} 
           type={isContinueDisabled ? 'secondary' : 'primary'}
           disabled={isContinueDisabled}
         />
       </View>
+
+      {/* Transaction Mode Selection Modal */}
+      <Modal
+        visible={isModeModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsModeModalVisible(false)}
+      >
+        <View className="flex-1 justify-center items-center bg-black/60 p-5">
+          <View className="bg-card w-full max-w-[420px] rounded-3xl p-6 border-2 border-border shadow-2xl">
+            
+            {/* Modal Header */}
+            <View className="flex-row justify-between items-center mb-4 pb-3 border-b border-border">
+              <View>
+                <Text className="text-[20px] font-extrabold text-textMain tracking-tight">SELECT TRANSACTION TYPE</Text>
+                <Text className="text-[12px] font-medium text-textSecondary mt-0.5">Party: {party?.name}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsModeModalVisible(false)}
+                className="w-9 h-9 rounded-full bg-background items-center justify-center border border-border"
+              >
+                <Feather name="x" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-[13px] font-medium text-textSecondary mb-5">
+              Choose the transaction mode to proceed with:
+            </Text>
+
+            {/* Option 1: REGULAR TRANSACTION */}
+            <TouchableOpacity
+              onPress={handleSelectRegular}
+              activeOpacity={0.8}
+              className="bg-background rounded-2xl p-5 mb-4 border-2 border-border hover:border-primary active:bg-emerald-50/40"
+            >
+              <View className="flex-row items-center mb-2">
+                <View className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-200 items-center justify-center mr-3">
+                  <Feather name="layers" size={20} color="#2563EB" />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center">
+                    <Text className="text-[18px] font-extrabold text-textMain">REGULAR</Text>
+                    <View className="ml-2 px-2 py-0.5 rounded-full bg-blue-100 border border-blue-200">
+                      <Text className="text-[10px] font-bold text-blue-700">WEIGHING FLOW</Text>
+                    </View>
+                  </View>
+                  <Text className="text-[12px] text-textSecondary mt-0.5">
+                    Physical weighing → Submit weights → Apply rates later
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#64748B" />
+              </View>
+              <Text className="text-[11px] text-textSecondary/80 pl-14">
+                Recommended when weighing bags one by one on the scale.
+              </Text>
+            </TouchableOpacity>
+
+            {/* Option 2: FAST TRANSACTION */}
+            <TouchableOpacity
+              onPress={handleSelectFast}
+              activeOpacity={0.8}
+              className="bg-emerald-50/50 rounded-2xl p-5 mb-4 border-2 border-emerald-300 active:bg-emerald-100/60"
+            >
+              <View className="flex-row items-center mb-2">
+                <View className="w-11 h-11 rounded-2xl bg-emerald-100 border border-emerald-300 items-center justify-center mr-3">
+                  <Feather name="zap" size={20} color="#059669" />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center">
+                    <Text className="text-[18px] font-extrabold text-emerald-800">FAST</Text>
+                    <View className="ml-2 px-2 py-0.5 rounded-full bg-emerald-200 border border-emerald-300">
+                      <Text className="text-[10px] font-bold text-emerald-800">QUICK ENTRY</Text>
+                    </View>
+                  </View>
+                  <Text className="text-[12px] text-emerald-700 mt-0.5">
+                    Date + Weight + Rate in single fast screen
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#059669" />
+              </View>
+              <Text className="text-[11px] text-emerald-700/80 pl-14">
+                For historical/bulk entries with known weight and rate per kg.
+              </Text>
+            </TouchableOpacity>
+
+            {/* Cancel */}
+            <TouchableOpacity
+              onPress={() => setIsModeModalVisible(false)}
+              className="py-3 items-center"
+            >
+              <Text className="text-[13px] font-bold text-textSecondary">CANCEL</Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Variety Modal */}
       <Modal

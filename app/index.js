@@ -1,21 +1,30 @@
-import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import ScreenContainer from '../components/common/ScreenContainer';
-import Button from '../components/common/Button';
+import { useAuth } from '../context/AuthContext';
+import { Feather } from '@expo/vector-icons';
 
 export default function Index() {
+  const { user, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (user) {
+        router.replace('/home');
+      } else {
+        router.replace('/login');
+      }
+    }
+  }, [user, isLoading]);
+
   return (
-    <ScreenContainer>
-      <ScrollView contentContainerClassName="py-12 px-4 flex-grow justify-center">
-        <Text className="text-[32px] font-extrabold text-textMain mb-2 text-center tracking-tight">Mill Master</Text>
-        <Text className="text-[16px] text-textSecondary mb-12 text-center font-medium">Development Entry Point</Text>
-        
-        <View className="gap-6 bg-card p-6 rounded-3xl border border-border shadow-sm elevation-1">
-          <Button title="Login Screen" onPress={() => router.push('/login')} />
-          <Button title="Create Account" onPress={() => router.push('/create-account')} type="secondary" />
-        </View>
-      </ScrollView>
-    </ScreenContainer>
+    <View className="flex-1 justify-center items-center bg-background px-6">
+      <View className="w-24 h-24 bg-[#ECFDF5] rounded-full items-center justify-center mb-6 shadow-soft border-[4px] border-[#D1FAE5]">
+        <Feather name="layers" size={44} color="#10B981" />
+      </View>
+      <Text className="text-[32px] font-extrabold text-textMain tracking-tight mb-2">Mill Master</Text>
+      <Text className="text-[15px] text-textSecondary font-medium text-center mb-8">Weighing & Transaction Management</Text>
+      <ActivityIndicator size="large" color="#10B981" />
+    </View>
   );
 }

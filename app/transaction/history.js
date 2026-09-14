@@ -99,7 +99,9 @@ export default function History() {
       if (parts[1] && parts[1].length >= 2) return;
     }
 
-    setEditInputValue(prev => prev + val);
+    if (!editInputValue.includes('.') && editInputValue.length >= 6) return;
+
+    setEditInputValue(prev => (prev === '0' && val !== '.' ? val : prev + val));
   };
 
   const handleEditBackspace = () => {

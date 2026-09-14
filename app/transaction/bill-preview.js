@@ -5,6 +5,7 @@ import ScreenContainer from '../../components/common/ScreenContainer';
 import Button from '../../components/common/Button';
 import { Feather } from '@expo/vector-icons';
 import { transactionApi } from '../../api/services/transactionApi';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Bill Preview Screen
@@ -18,6 +19,7 @@ import { transactionApi } from '../../api/services/transactionApi';
  *  - transactionId param (looks up bill by transaction)
  */
 export default function BillPreview() {
+  const { user } = useAuth();
   const { billId, transactionId } = useLocalSearchParams();
   const viewRef = useRef(null);
 
@@ -101,7 +103,11 @@ export default function BillPreview() {
   };
 
   const handleGoBack = () => {
-    router.replace('/parties');
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/parties');
+    }
   };
 
   if (isLoading) {
@@ -134,15 +140,30 @@ export default function BillPreview() {
 
   // Prepare display data from backend bill
   const receiptNo = billData.bill_number;
-  const currentDate = new Date(billData.bill_date || billData.created_at).toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
+  const formatBillDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const parts = dateStr.split('T')[0].split('-');
+      if (parts.length === 3) {
+        const [y, m, d] = parts.map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
+          day: 'numeric', month: 'short', year: 'numeric'
+        });
+      }
+    }
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: 'numeric', month: 'short', year: 'numeric'
+    });
+  };
+  const currentDate = formatBillDate(billData.bill_date || billData.created_at);
   const displayPartyName = billData.party_name_snapshot;
   const displayTotalBags = billData.total_bags;
   const displayTotalWeight = parseFloat(billData.total_weight);
   const displayTotalAmount = parseFloat(billData.total_amount);
   const isPaid = billData.payment_status === 'PAID';
+  const displayMillName = billData.mill_name || user?.millName || 'MILL BILLING';
+  const displayMillAddress = billData.mill_address || user?.millAddress || '';
+  const displayMillPhone = billData.mill_phone || user?.millPhone || '';
 
   // Group bill items by product
   const groupedItems = billItems.reduce((acc, item) => {
@@ -222,9 +243,13 @@ export default function BillPreview() {
         >
           {/* Bill Header */}
           <View className="items-center border-b-2 border-dashed border-border pb-5 mb-5">
-            <Text className="text-[28px] font-extrabold text-textMain tracking-widest uppercase">Bhavani Traders</Text>
-            <Text className="text-[14px] font-medium text-textSecondary mt-2 tracking-wide">APMC Market, Yard No 1</Text>
-            <Text className="text-[14px] font-medium text-textSecondary mt-1 tracking-wide">Phone: +91 98765 43210</Text>
+            <Text className="text-[26px] font-extrabold text-textMain tracking-widest uppercase text-center">{displayMillName}</Text>
+            {displayMillAddress ? (
+              <Text className="text-[13px] font-medium text-textSecondary mt-1.5 tracking-wide text-center">{displayMillAddress}</Text>
+            ) : null}
+            {displayMillPhone ? (
+              <Text className="text-[13px] font-medium text-textSecondary mt-1 tracking-wide text-center">Phone: {displayMillPhone}</Text>
+            ) : null}
           </View>
 
           {/* Bill Details */}

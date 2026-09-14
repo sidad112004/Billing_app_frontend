@@ -1,10 +1,50 @@
 import { Feather } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
-import { useEffect, useState, useMemo } from 'react';
-import { Alert, Modal, ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Alert, Modal, ScrollView, Text, TouchableOpacity, View, ActivityIndicator, BackHandler, StyleSheet } from 'react-native';
 import ScreenContainer from '../../components/common/ScreenContainer';
+import InputField from '../../components/common/InputField';
 import { useTransaction } from '../../context/TransactionContext';
 import { transactionApi } from '../../api/services/transactionApi';
+
+const styles = StyleSheet.create({
+  keypadBtn: {
+    flex: 1,
+    marginRight: 8,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+  },
+  keypadNormal: {
+    backgroundColor: '#FFFFFF',
+  },
+  keypadSpecial: {
+    backgroundColor: '#F8FAFC',
+  },
+  keypadText: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+});
+
+const KeypadButton = React.memo(function KeypadButton({ label, onPress, isSpecial = false }) {
+  return (
+    <TouchableOpacity
+      style={[styles.keypadBtn, isSpecial ? styles.keypadSpecial : styles.keypadNormal]}
+      onPress={onPress}
+      activeOpacity={0.6}
+    >
+      {label === '⌫' ? (
+        <Feather name="delete" size={28} color="#0F172A" />
+      ) : (
+        <Text style={styles.keypadText}>{label}</Text>
+      )}
+    </TouchableOpacity>
+  );
+});
 
 export default function Calculator() {
   const {
@@ -33,8 +73,57 @@ export default function Calculator() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isAddingVarieties, setIsAddingVarieties] = useState(false);
 
+  // Dynamic Product Creation State
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductLocalName, setNewProductLocalName] = useState('');
+  const [newProductDesc, setNewProductDesc] = useState('');
+  const [productFormError, setProductFormError] = useState('');
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  // Dynamic Variety Creation State
+  const [isCreatingVariety, setIsCreatingVariety] = useState(false);
+  const [newVarietyName, setNewVarietyName] = useState('');
+  const [newVarietyLocalName, setNewVarietyLocalName] = useState('');
+  const [newVarietyDesc, setNewVarietyDesc] = useState('');
+  const [varietyFormError, setVarietyFormError] = useState('');
+  const [isSavingVariety, setIsSavingVariety] = useState(false);
+
   // Live summary panel toggle
   const [showSummary, setShowSummary] = useState(false);
+
+  // Hardware Back Button Protection
+  useEffect(() => {
+    const onBackPress = () => {
+      if (showAddModal) {
+        setShowAddModal(false);
+        return true;
+      }
+      if (showSummary) {
+        setShowSummary(false);
+        return true;
+      }
+      if (weightEntries && weightEntries.length > 0) {
+        Alert.alert(
+          'Leave Weighing Session?',
+          'You have recorded weights for this transaction. Leaving will return to the party list. (Your recorded weights are preserved as a Draft on the server).',
+          [
+            { text: 'Stay & Continue', style: 'cancel' },
+            {
+              text: 'Leave',
+              style: 'default',
+              onPress: () => router.replace('/parties')
+            }
+          ]
+        );
+        return true;
+      }
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [showAddModal, showSummary, weightEntries?.length]);
 
   // Auto-select first variety when varieties load (new tx or restored from backend)
   useEffect(() => {
@@ -78,6 +167,35 @@ export default function Calculator() {
       transactionApi.getTransaction(backendTransactionId)
         .then(res => {
           if (!res.success || !res.data) throw new Error(res.message || 'Failed to load transaction');
+
+          const txStatus = res.data.transaction?.status;
+          if (txStatus === 'COMPLETED' || txStatus === 'CONFIRMED' || txStatus === 'CLOSED') {
+            Alert.alert(
+              'Transaction Completed',
+              'This transaction is already completed and finalized. It cannot be resumed for weighing.',
+              [
+                {
+                  text: 'View Bill',
+                  onPress: () => router.replace({ pathname: '/transaction/bill-preview', params: { transactionId: backendTransactionId } }),
+                },
+              ]
+            );
+            return;
+          }
+
+          if (txStatus === 'RATE') {
+            Alert.alert(
+              'Rate Stage',
+              'Weighing is already finished for this transaction. Redirecting to Rate Entry.',
+              [
+                {
+                  text: 'Go to Rates',
+                  onPress: () => router.replace({ pathname: '/transaction/rate-entry', params: { transactionId: backendTransactionId } }),
+                },
+              ]
+            );
+            return;
+          }
 
           const { products, totals } = res.data;
           const varietyMap = {};
@@ -133,7 +251,8 @@ export default function Calculator() {
       const parts = inputWeight.split('.');
       if (parts[1] && parts[1].length >= 2) return;
     }
-    setInputWeight(prev => prev + val);
+    if (!inputWeight.includes('.') && inputWeight.length >= 6) return;
+    setInputWeight(prev => (prev === '0' && val !== '.' ? val : prev + val));
   };
 
   const handleBackspace = () => setInputWeight(prev => prev.slice(0, -1));
@@ -210,6 +329,10 @@ export default function Calculator() {
   // ----------------------------------------------------------------
   const openAddModal = async () => {
     setShowAddModal(true);
+    setIsCreatingProduct(false);
+    setIsCreatingVariety(false);
+    setProductFormError('');
+    setVarietyFormError('');
     setSelectedNewProduct(null);
     setSelectedNewVarieties([]);
     setAvailableVarieties([]);
@@ -231,6 +354,7 @@ export default function Calculator() {
     setSelectedNewProduct(product);
     setSelectedNewVarieties([]);
     setAvailableVarieties([]);
+    setIsCreatingVariety(false);
     setIsLoadingProducts(true);
     try {
       const { productApi } = await import('../../api/services/productApi');
@@ -252,6 +376,100 @@ export default function Calculator() {
       const exists = prev.some(v => v.id === variety.id);
       return exists ? prev.filter(v => v.id !== variety.id) : [...prev, variety];
     });
+  };
+
+  const handleSaveNewProduct = async () => {
+    const trimmedName = newProductName.trim();
+    if (!trimmedName) {
+      setProductFormError('Product / Category name is required');
+      return;
+    }
+
+    setIsSavingProduct(true);
+    setProductFormError('');
+    try {
+      const { productApi } = await import('../../api/services/productApi');
+      const res = await productApi.createProduct({
+        name: trimmedName,
+        local_name: newProductLocalName.trim() || undefined,
+        description: newProductDesc.trim() || undefined,
+      });
+
+      if (res && res.success && res.data) {
+        const createdProd = res.data;
+        setAvailableProducts(prev => [createdProd, ...prev]);
+        setSelectedNewProduct(createdProd);
+        setAvailableVarieties([]);
+        setSelectedNewVarieties([]);
+        setNewProductName('');
+        setNewProductLocalName('');
+        setNewProductDesc('');
+        setIsCreatingProduct(false);
+        // Automatically open variety creation for this newly created product
+        setIsCreatingVariety(true);
+      } else {
+        setProductFormError(res?.message || 'Failed to create product');
+      }
+    } catch (err) {
+      setProductFormError(err?.message || 'Network error occurred');
+    } finally {
+      setIsSavingProduct(false);
+    }
+  };
+
+  const handleSaveNewVariety = async () => {
+    if (!selectedNewProduct) {
+      setVarietyFormError('Please select or create a product first');
+      return;
+    }
+    const trimmedName = newVarietyName.trim();
+    if (!trimmedName) {
+      setVarietyFormError('Variety name is required');
+      return;
+    }
+
+    setIsSavingVariety(true);
+    setVarietyFormError('');
+    try {
+      const { productApi } = await import('../../api/services/productApi');
+      const res = await productApi.createVariety(selectedNewProduct.id, {
+        name: trimmedName,
+        local_name: newVarietyLocalName.trim() || undefined,
+        description: newVarietyDesc.trim() || undefined,
+      });
+
+      if (res && res.success && res.data) {
+        const createdVariety = res.data;
+        const varietyObj = {
+          id: createdVariety.id,
+          name: createdVariety.name,
+          productId: selectedNewProduct.id,
+          productName: selectedNewProduct.name,
+        };
+
+        // Add directly to transaction backend
+        setIsAddingVarieties(true);
+        const success = await addProductVarietiesToTransaction([varietyObj]);
+        setIsAddingVarieties(false);
+
+        if (success) {
+          setShowAddModal(false);
+          setActiveVariety(varietyObj);
+          setNewVarietyName('');
+          setNewVarietyLocalName('');
+          setNewVarietyDesc('');
+          setIsCreatingVariety(false);
+        } else {
+          setVarietyFormError('Variety created in database, but failed to attach to transaction.');
+        }
+      } else {
+        setVarietyFormError(res?.message || 'Failed to create variety');
+      }
+    } catch (err) {
+      setVarietyFormError(err?.message || 'Network error occurred');
+    } finally {
+      setIsSavingVariety(false);
+    }
   };
 
   const handleAddVarieties = async () => {
@@ -292,20 +510,6 @@ export default function Calculator() {
     acc[v.productName].push(v);
     return acc;
   }, {});
-
-  const KeypadButton = ({ label, onPress, isSpecial = false }) => (
-    <TouchableOpacity
-      className={`flex-1 mr-2 rounded-2xl items-center justify-center border-2 shadow-sm elevation-1 ${isSpecial ? 'bg-background border-border' : 'bg-card border-border'}`}
-      onPress={onPress}
-      activeOpacity={0.6}
-    >
-      {label === '⌫' ? (
-        <Feather name="delete" size={28} color="#0F172A" />
-      ) : (
-        <Text className="text-[34px] font-extrabold text-textMain">{label}</Text>
-      )}
-    </TouchableOpacity>
-  );
 
   return (
     <ScreenContainer>
@@ -606,35 +810,167 @@ export default function Calculator() {
                 </View>
               ) : (
                 <>
-                  {/* Step 1: Select Product */}
-                  <Text className="text-[13px] font-bold text-textSecondary uppercase tracking-wider mb-3">
-                    1. Select Product
-                  </Text>
+                  {/* Step 1: Select or Create Product */}
+                  <View className="flex-row justify-between items-center mb-2.5">
+                    <Text className="text-[13px] font-bold text-textSecondary uppercase tracking-wider">
+                      1. Select or Create Product
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setIsCreatingProduct(!isCreatingProduct);
+                        setProductFormError('');
+                      }}
+                      className="flex-row items-center px-2.5 py-1 bg-primary/10 rounded-lg border border-primary/20"
+                    >
+                      <Feather name={isCreatingProduct ? "minus" : "plus"} size={12} color="#10B981" />
+                      <Text className="text-[11px] font-bold text-primary ml-1">
+                        {isCreatingProduct ? "Cancel New Product" : "+ New Product (Category)"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Inline New Product Form */}
+                  {isCreatingProduct && (
+                    <View className="bg-background p-4 rounded-2xl border border-primary/30 mb-4 shadow-sm">
+                      <Text className="text-[14px] font-black text-textMain mb-2">Create New Product Category</Text>
+                      {productFormError ? (
+                        <View className="p-2 mb-2 bg-red-50 rounded-lg border border-red-200">
+                          <Text className="text-[12px] text-red-600 font-bold">{productFormError}</Text>
+                        </View>
+                      ) : null}
+                      <InputField
+                        label="Product Name *"
+                        placeholder="e.g. Soyabean, Wheat, Maka"
+                        value={newProductName}
+                        onChangeText={setNewProductName}
+                      />
+                      <InputField
+                        label="Local / Regional Name (Optional)"
+                        placeholder="e.g. सोयाबीन / गहू"
+                        value={newProductLocalName}
+                        onChangeText={setNewProductLocalName}
+                      />
+                      <InputField
+                        label="Description (Optional)"
+                        placeholder="e.g. Standard grade crop"
+                        value={newProductDesc}
+                        onChangeText={setNewProductDesc}
+                      />
+                      <TouchableOpacity
+                        onPress={handleSaveNewProduct}
+                        disabled={isSavingProduct}
+                        className="bg-primary py-2.5 rounded-xl items-center mt-2 flex-row justify-center"
+                      >
+                        {isSavingProduct ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Feather name="check" size={14} color="#fff" className="mr-1.5" />
+                            <Text className="text-white font-bold text-[13px]">Create & Select Product</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Available Products Chips */}
                   <View className="flex-row flex-wrap gap-2 mb-5">
                     {availableProducts.map(product => {
                       const isSelected = selectedNewProduct?.id === product.id;
                       return (
                         <TouchableOpacity
                           key={product.id}
-                          className={`border rounded-xl px-4 py-2 ${isSelected ? 'bg-primary border-primary' : 'bg-background border-border'}`}
+                          className={`border rounded-xl px-4 py-2 flex-row items-center ${isSelected ? 'bg-primary border-primary' : 'bg-background border-border'}`}
                           onPress={() => handleSelectNewProduct(product)}
                         >
+                          <Feather name="box" size={12} color={isSelected ? '#fff' : '#64748B'} className="mr-1.5" />
                           <Text className={`text-[13px] font-bold ${isSelected ? 'text-white' : 'text-textMain'}`}>{product.name}</Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
 
-                  {/* Step 2: Select Varieties */}
+                  {/* Step 2: Select or Create Varieties */}
                   {selectedNewProduct && (
                     <>
-                      <Text className="text-[13px] font-bold text-textSecondary uppercase tracking-wider mb-3">
-                        2. Select Varieties for {selectedNewProduct.name}
-                      </Text>
-                      {availableVarieties.length === 0 ? (
-                        <Text className="text-textSecondary italic mb-4">
-                          All varieties of {selectedNewProduct.name} are already added.
+                      <View className="flex-row justify-between items-center mb-2.5 pt-3 border-t border-border">
+                        <Text className="text-[13px] font-bold text-textSecondary uppercase tracking-wider">
+                          2. Varieties for {selectedNewProduct.name}
                         </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setIsCreatingVariety(!isCreatingVariety);
+                            setVarietyFormError('');
+                          }}
+                          className="flex-row items-center px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200"
+                        >
+                          <Feather name={isCreatingVariety ? "minus" : "plus"} size={12} color="#059669" />
+                          <Text className="text-[11px] font-bold text-emerald-800 ml-1">
+                            {isCreatingVariety ? "Cancel" : "+ New Variety"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Inline New Variety Form */}
+                      {isCreatingVariety && (
+                        <View className="bg-background p-4 rounded-2xl border border-emerald-300 mb-4 shadow-sm">
+                          <Text className="text-[14px] font-black text-textMain mb-2">
+                            Add New Variety to {selectedNewProduct.name}
+                          </Text>
+                          {varietyFormError ? (
+                            <View className="p-2 mb-2 bg-red-50 rounded-lg border border-red-200">
+                              <Text className="text-[12px] text-red-600 font-bold">{varietyFormError}</Text>
+                            </View>
+                          ) : null}
+                          <InputField
+                            label="Variety Name *"
+                            placeholder="e.g. Grade A, Tukda, 1121"
+                            value={newVarietyName}
+                            onChangeText={setNewVarietyName}
+                          />
+                          <InputField
+                            label="Local / Regional Name (Optional)"
+                            placeholder="e.g. नंबर १"
+                            value={newVarietyLocalName}
+                            onChangeText={setNewVarietyLocalName}
+                          />
+                          <InputField
+                            label="Description (Optional)"
+                            placeholder="e.g. Moisture below 12%"
+                            value={newVarietyDesc}
+                            onChangeText={setNewVarietyDesc}
+                          />
+                          <TouchableOpacity
+                            onPress={handleSaveNewVariety}
+                            disabled={isSavingVariety}
+                            className="bg-emerald-600 py-2.5 rounded-xl items-center mt-2 flex-row justify-center"
+                          >
+                            {isSavingVariety ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <>
+                                <Feather name="plus-circle" size={14} color="#fff" className="mr-1.5" />
+                                <Text className="text-white font-bold text-[13px]">Create & Add To Weighing</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Existing Available Varieties */}
+                      {availableVarieties.length === 0 && !isCreatingVariety ? (
+                        <View className="py-3 px-4 bg-background rounded-xl border border-border mb-4 items-center">
+                          <Text className="text-textSecondary text-[13px] mb-2">
+                            No unselected varieties found for {selectedNewProduct.name}.
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => setIsCreatingVariety(true)}
+                            className="px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200 flex-row items-center"
+                          >
+                            <Feather name="plus" size={12} color="#059669" />
+                            <Text className="text-[12px] font-bold text-emerald-800 ml-1">Create First Variety</Text>
+                          </TouchableOpacity>
+                        </View>
                       ) : (
                         <View className="flex-row flex-wrap gap-2 mb-6">
                           {availableVarieties.map(variety => {
@@ -642,10 +978,10 @@ export default function Calculator() {
                             return (
                               <TouchableOpacity
                                 key={variety.id}
-                                className={`border rounded-xl px-4 py-2 ${isSelected ? 'bg-primary border-primary' : 'bg-background border-border'}`}
+                                className={`border rounded-xl px-4 py-2 flex-row items-center ${isSelected ? 'bg-primary border-primary' : 'bg-background border-border'}`}
                                 onPress={() => toggleNewVariety(variety)}
                               >
-                                {isSelected && <Feather name="check" size={12} color="#fff" />}
+                                {isSelected && <Feather name="check" size={12} color="#fff" className="mr-1" />}
                                 <Text className={`text-[13px] font-bold ${isSelected ? 'text-white' : 'text-textMain'}`}>{variety.name}</Text>
                               </TouchableOpacity>
                             );
@@ -656,19 +992,21 @@ export default function Calculator() {
                   )}
 
                   {/* Confirm button */}
-                  <TouchableOpacity
-                    className={`bg-primary py-4 rounded-2xl items-center mt-2 mb-6 ${(selectedNewVarieties.length === 0 || isAddingVarieties) ? 'opacity-50' : ''}`}
-                    onPress={handleAddVarieties}
-                    disabled={selectedNewVarieties.length === 0 || isAddingVarieties}
-                  >
-                    {isAddingVarieties ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text className="text-white font-extrabold text-[15px] tracking-widest">
-                        ADD {selectedNewVarieties.length > 0 ? `(${selectedNewVarieties.length}) ` : ''}VARIETIES & CONTINUE
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                  {selectedNewVarieties.length > 0 && (
+                    <TouchableOpacity
+                      className={`bg-primary py-4 rounded-2xl items-center mt-2 mb-6 ${isAddingVarieties ? 'opacity-50' : ''}`}
+                      onPress={handleAddVarieties}
+                      disabled={isAddingVarieties}
+                    >
+                      {isAddingVarieties ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text className="text-white font-extrabold text-[15px] tracking-widest">
+                          ADD ({selectedNewVarieties.length}) VARIETIES & CONTINUE
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
             </ScrollView>

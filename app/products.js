@@ -14,6 +14,7 @@ export default function ProductsScreen() {
   const [expandedProducts, setExpandedProducts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Add Product Modal State
   const [isProductModalVisible, setIsProductModalVisible] = useState(false);
@@ -59,7 +60,13 @@ export default function ProductsScreen() {
       console.error('Failed to load products and varieties:', error);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadProductsAndVarieties();
   };
 
   const toggleExpand = (productId) => {
@@ -264,6 +271,8 @@ export default function ProductsScreen() {
             renderItem={renderProductItem}
             contentContainerClassName="pb-24"
             showsVerticalScrollIndicator={false}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
             ListEmptyComponent={
               <EmptyState
                 icon="box"

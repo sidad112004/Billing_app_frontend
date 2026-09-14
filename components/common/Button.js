@@ -1,26 +1,74 @@
 import React from 'react';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  button: {
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  primary: {
+    backgroundColor: '#10B981',
+  },
+  secondary: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+  },
+  disabledPrimary: {
+    backgroundColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  disabledSecondary: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    opacity: 0.6,
+  },
+  text: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  primaryText: {
+    color: '#FFFFFF',
+  },
+  secondaryText: {
+    color: '#10B981',
+  },
+  disabledText: {
+    color: '#94A3B8',
+  },
+});
 
 export default function Button({ title, onPress, type = 'primary', style, disabled }) {
   const isPrimary = type === 'primary';
-  
-  const baseButtonClass = "py-4 px-8 rounded-2xl items-center justify-center min-h-[56px] shadow-sm elevation-2";
-  const primaryButtonClass = disabled ? "bg-border border-border opacity-60 shadow-none elevation-0" : "bg-primary";
-  const secondaryButtonClass = disabled ? "bg-border border-border opacity-60 shadow-none elevation-0" : "bg-card border-[1.5px] border-primary";
-  
-  const baseTextClass = "text-[18px] font-bold tracking-wide";
-  const primaryTextClass = disabled ? "text-textSecondary" : "text-card";
-  const secondaryTextClass = disabled ? "text-textSecondary" : "text-primary";
+
+  const buttonStyle = [
+    styles.button,
+    isPrimary
+      ? (disabled ? styles.disabledPrimary : styles.primary)
+      : (disabled ? styles.disabledSecondary : styles.secondary),
+    style,
+  ];
+
+  const textStyle = [
+    styles.text,
+    disabled
+      ? styles.disabledText
+      : (isPrimary ? styles.primaryText : styles.secondaryText),
+  ];
 
   return (
-    <TouchableOpacity 
-      className={`${baseButtonClass} ${isPrimary ? primaryButtonClass : secondaryButtonClass}`} 
-      style={style}
+    <TouchableOpacity
+      style={buttonStyle}
       onPress={disabled ? null : onPress}
       activeOpacity={disabled ? 1 : 0.8}
       disabled={disabled}
     >
-      <Text className={`${baseTextClass} ${isPrimary ? primaryTextClass : secondaryTextClass}`}>
+      <Text style={textStyle}>
         {title}
       </Text>
     </TouchableOpacity>

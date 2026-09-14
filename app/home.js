@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import ScreenContainer from '../components/common/ScreenContainer';
 import Button from '../components/common/Button';
@@ -11,9 +11,10 @@ import { useTransaction } from '../context/TransactionContext';
 
 export default function Home() {
   const { user, logout } = useAuth();
-  const { setTransactionId, setParty } = useTransaction();
+  const { setTransactionId, setParty, resetTransaction } = useTransaction();
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [isLoadingTx, setIsLoadingTx] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadRecentTransactions();
@@ -30,18 +31,34 @@ export default function Home() {
       console.error('Failed to load recent transactions:', error);
     } finally {
       setIsLoadingTx(false);
+      setIsRefreshing(false);
     }
   };
 
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    loadRecentTransactions();
+  }, []);
+
+  const handleLogout = () => {
+    logout(resetTransaction);
+  };
+
   const handleTxPress = (item) => {
-    if (item.status === 'CONFIRMED' || item.status === 'CLOSED') {
+    if (item.status === 'COMPLETED' || item.status === 'CONFIRMED' || item.status === 'CLOSED') {
       router.push({ pathname: '/transaction/bill-preview', params: { transactionId: item.id } });
+    } else if (item.status === 'RATE') {
+      router.push({ pathname: '/transaction/rate-entry', params: { transactionId: item.id } });
     } else {
       setTransactionId(item.id);
       if (item.party_name) {
         setParty({ id: item.party_id, name: item.party_name });
       }
-      router.push('/transaction/calculator');
+      if (item.entry_mode === 'FAST') {
+        router.push('/transaction/fast-calculator');
+      } else {
+        router.push('/transaction/calculator');
+      }
     }
   };
 
@@ -59,7 +76,13 @@ export default function Home() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerClassName="flex-grow pb-10" showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerClassName="flex-grow pb-10" 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#10B981']} tintColor="#10B981" />
+        }
+      >
         
         {/* Header Section */}
         <View className="flex-row justify-between items-center mb-8 py-4 px-2">
@@ -69,7 +92,8 @@ export default function Home() {
           </View>
           <TouchableOpacity 
             className="w-14 h-14 rounded-full bg-card items-center justify-center border-2 border-border shadow-sm elevation-2"
-            onPress={logout}
+            onPress={handleLogout}
+            activeOpacity={0.7}
           >
             <Feather name="log-out" size={24} color="#EF4444" />
           </TouchableOpacity>
@@ -132,7 +156,7 @@ export default function Home() {
             </View>
           ) : recentTransactions.length > 0 ? (
             recentTransactions.map((item) => {
-              const isDone = item.status === 'CONFIRMED' || item.status === 'CLOSED';
+              const isDone = item.status === 'COMPLETED' || item.status === 'CONFIRMED' || item.status === 'CLOSED';
               const wt = parseFloat(item.total_weight) || 0;
               const bags = parseInt(item.total_bags, 10) || 0;
 

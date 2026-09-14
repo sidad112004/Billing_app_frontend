@@ -35,4 +35,16 @@ export const partyApi = {
       body: JSON.stringify({ status }),
     });
   },
+
+  getPartyTimeline: async (partyId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to);
+    if (params.type && params.type !== 'ALL') query.append('type', params.type);
+    if (params.paymentStatus && params.paymentStatus !== 'ALL') query.append('paymentStatus', params.paymentStatus);
+    if (params.page) query.append('page', params.page);
+    if (params.limit) query.append('limit', params.limit);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return await apiClient(`/parties/${partyId}/timeline${queryString}`);
+  },
 };

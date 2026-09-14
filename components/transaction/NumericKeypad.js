@@ -1,23 +1,49 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { THEME } from '../../constants/theme'; // only needed for color prop in Feather
+import { THEME } from '../../constants/theme';
 
-export default function NumericKeypad({ onKeyPress, onBackspace }) {
-  const KeypadButton = ({ label, onPress, isSpecial = false }) => (
+const styles = StyleSheet.create({
+  keypadBtn: {
+    flex: 1,
+    aspectRatio: 2,
+    marginHorizontal: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  keypadNormal: {
+    backgroundColor: '#FFFFFF',
+  },
+  keypadSpecial: {
+    backgroundColor: '#F1F5F9',
+  },
+  btnText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#0F172A',
+  },
+});
+
+const KeypadButton = React.memo(function KeypadButton({ label, onPress, isSpecial = false }) {
+  return (
     <TouchableOpacity 
-      className={`flex-1 aspect-[2] mx-1 rounded-md items-center justify-center border border-border shadow-sm elevation-1 ${isSpecial ? 'bg-[#F7FAFC]' : 'bg-card'}`}
+      style={[styles.keypadBtn, isSpecial ? styles.keypadSpecial : styles.keypadNormal]}
       onPress={onPress}
       activeOpacity={0.6}
     >
       {label === '⌫' ? (
         <Feather name="delete" size={24} color={THEME.colors.textMain} />
       ) : (
-        <Text className="text-[28px] font-bold text-textMain">{label}</Text>
+        <Text style={styles.btnText}>{label}</Text>
       )}
     </TouchableOpacity>
   );
+});
 
+export default function NumericKeypad({ onKeyPress, onBackspace }) {
   return (
     <View className="justify-center mb-4">
       <View className="flex-row justify-between mb-2">
