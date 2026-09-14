@@ -283,7 +283,6 @@ export default function Calculator() {
     const tempId = `weight_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const newEntry = {
       id: tempId,
-      tempId,
       productId: activeVariety.productId,
       productName: activeVariety.productName,
       varietyId: activeVariety.id,
@@ -299,12 +298,14 @@ export default function Calculator() {
       const res = await transactionApi.addWeightEntry(txVarietyId, { weight: weightNum });
       if (res.success) {
         newEntry.id = res.data.id;
+        delete newEntry.tempId;
         addWeightEntry(newEntry, false);
       } else {
         throw new Error(res.message);
       }
     } catch (error) {
       console.log('Adding to offline queue due to error:', error);
+      newEntry.tempId = tempId;
       addWeightEntry(newEntry, true);
     }
   };

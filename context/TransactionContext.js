@@ -299,7 +299,10 @@ export function TransactionProvider({ children }) {
     updateState((prev) => ({
       ...prev,
       weightEntries: prev.weightEntries.map(entry =>
-        entry.id === entryId ? { ...entry, weight: newWeight } : entry
+        (entry.id === entryId || entry.tempId === entryId) ? { ...entry, weight: newWeight } : entry
+      ),
+      pendingSync: prev.pendingSync.map(entry =>
+        (entry.id === entryId || entry.tempId === entryId) ? { ...entry, weight: newWeight } : entry
       )
     }));
   };
@@ -307,7 +310,8 @@ export function TransactionProvider({ children }) {
   const deleteWeightEntry = (entryId) => {
     updateState((prev) => ({
       ...prev,
-      weightEntries: prev.weightEntries.filter(entry => entry.id !== entryId)
+      weightEntries: prev.weightEntries.filter(entry => entry.id !== entryId && entry.tempId !== entryId),
+      pendingSync: prev.pendingSync.filter(entry => entry.id !== entryId && entry.tempId !== entryId)
     }));
   };
 
